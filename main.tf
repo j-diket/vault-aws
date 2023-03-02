@@ -21,8 +21,8 @@ module "bastion_vpc" {
   private_subnets = ["192.168.1.0/24"]
   public_subnets = ["192.168.101.0/24"]
 
-  enable_nat_gateway = 
-  single_nat_gateway = 
+  enable_nat_gateway = true
+  single_nat_gateway = true
   
   enable_dns_hostnames = true
   enable_dns_support = true
