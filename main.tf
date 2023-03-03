@@ -11,37 +11,69 @@ locals {
   )
 }
 
-module "bastion_vpc" {
-  source = "terraform-aws-modules/vpc/aws"
-  name = "${random_id.deployment_tag.hez}-bastion"
+##############################################
+# Bastion VPC
+##############################################
 
-  cidr = "192.168.0.0/16"
+# module "bastion_vpc" {
+#   source = "terraform-aws-modules/vpc/aws"
+#   name = "${random_id.deployment_tag.hez}-bastion"
 
-  azs = [data.aws_availability_zones.available.names[0]]
-  private_subnets = ["192.168.1.0/24"]
-  public_subnets = ["192.168.101.0/24"]
+#   cidr = "192.168.0.0/16"
 
-  enable_nat_gateway = true
-  single_nat_gateway = true
+#   azs = [data.aws_availability_zones.available.names[0]]
+#   private_subnets = ["192.168.1.0/24"]
+#   public_subnets = ["192.168.101.0/24"]
+
+#   enable_nat_gateway = true
+#   single_nat_gateway = true
   
-  enable_dns_hostnames = true
-  enable_dns_support = true
+#   enable_dns_hostnames = true
+#   enable_dns_support = true
 
-  public_subnet_tags = {
-    Name = "public-${random_id.deployment_tag.hex}"
-  }
+#   public_subnet_tags = {
+#     Name = "public-${random_id.deployment_tag.hex}"
+#   }
 
-  tags = local.tags
+#   tags = local.tags
 
-  vpc_tags = {
-    Name = "${random_id.deployment_tag.hex}-vpc"
-  }
+#   vpc_tags = {
+#     Name = "${random_id.deployment_tag.hex}-vpc"
+#   }
 
-  providers = {
-    aws = aws.region1 
-   }
+#   providers = {
+#     aws = aws.region1 
+#    }
+# }
+
+##############################################
+# Host VPC for Primary Cluster
+##############################################
+
+locals {
+  max_subnet_length = max(
+    length(var.private_subnets),
+    length(var.elasticache_subnets),
+    length(var.database_subnets),
+    length(var.redshift_subnets),
+  )
+  nat_gateway_count = var.single_nat_gateway ? 1 : var.one_nat_gateway_per_az ? length(var.azs) : local.max_subnet_length
+
+  vpc_id = try(aws_vpc_ipv4_cidr_block_association.this[0].vpc_id, aws_vpc.this[0].id, "")
+
+  create_vpc = var.create_vpc && var.putin_khuylo
 }
 
+resource "aws_vpc" "primary" {
+  count = local.create_vpc ? 1 : 0
+
+  cidr_block = var.use_ipam_pool ? null : var.cidr
+  ipv4_ipam_pool_id = var.ipv4_ipam_pool_id
+}
+
+##############################################
+# Security Groups
+##############################################
 resource "aws_default_security_group" "bastion_default" {
   provider = aws.region1
   vpc_id = module.bastion_vpc.vpc_id
